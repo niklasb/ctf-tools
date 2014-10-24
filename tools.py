@@ -31,8 +31,32 @@ class shellcode:
       "\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68\xff\xff\xff"
     )
 
+def de_bruijn(k, n):
+  a = [0] * k * n
+  sequence = []
+  def db(t, p):
+    if t > n:
+      if n % p == 0:
+        for j in range(1, p + 1):
+          sequence.append(a[j])
+    else:
+      a[t] = a[t - p]
+      db(t + 1, p)
+      for j in range(a[t - p] + 1, k):
+        a[t] = j
+        db(t + 1, t)
+  db(1, 1)
+  return sequence
+
 class Pattern:
   def __init__(self, n):
+    alph = string.ascii_uppercase + string.ascii_lowercase + string.digits
+    if n <= len(alph):
+      self.s = alph[:n]
+      return
+    if n <= len(alph)**2:
+      self.s = "".join(alph[i] for i in de_bruijn(len(alph), 2))[:n]
+      return
     s = ""
     for a,b,c in itertools.product(
                       string.ascii_uppercase,
@@ -46,7 +70,15 @@ class Pattern:
   def __str__(self):
     return self.s
   def offset(self, x):
-    return self.s.index(pack(x))
+    p = pack(x)
+    i = self.s.index(p)
+    try:
+      self.s[i+len(p):].index(p)
+    except ValueError:
+      return i
+    else:
+      raise ValueError, "Not unique!"
+
 
 def assemble(code, bits=32):
   if code[-1] != "\n":
