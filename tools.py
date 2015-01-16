@@ -233,8 +233,8 @@ for c in [x86_shellcode, x86_64_shellcode]:
     if not k.startswith('_') and isinstance(sc, str):
       assert contains_not(sc, "\0")
 
+libc = ctypes.CDLL("libc.so.6")
 def alloc_exec_buffer(buf):
-  libc = ctypes.CDLL('libc.so.6')
   sz = len(buf)
   buf = ctypes.c_char_p(buf)
   addr = ctypes.c_void_p(libc.valloc(sz))
@@ -248,7 +248,6 @@ def alloc_exec_buffer(buf):
 def execute_code(sc):
   ctypes.cast(alloc_exec_buffer(sc), ctypes.CFUNCTYPE(None))()
 
-libc = ctypes.CDLL("libc.so.6")
 def execvp(fname, args):
   for x in args:
     assert contains_not(x, "\0")
