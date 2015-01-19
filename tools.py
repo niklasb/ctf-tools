@@ -362,11 +362,13 @@ def read_until_str(s, content):
   buf = ""
   while content not in buf:
     buf += s.recv(1)
+  return buf
 
 def read_until_match(s, regex):
   buf = ""
   while not re.match(s, regex):
     buf += s.recv(1)
+  return buf
 
 def socket_interact(s):
   t = telnetlib.Telnet()
