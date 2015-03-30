@@ -60,6 +60,10 @@ class Backend(object):
         print
         return "".join(res)
 
+    def eval_ascii(self, expr, **kwargs):
+        # range might fail for our current sqlite implementation, not sure why
+        return self.eval_str(expr, char_range=(32,126), **kwargs)
+
 class Sqlite(Backend):
     def __init__(self, eval_bool):
         self.eval_bool = eval_bool
