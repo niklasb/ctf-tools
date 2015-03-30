@@ -23,7 +23,17 @@ class Backend(object):
         print
         return lo
 
-    def eval_str(self, expr, len_range=(0,100), char_range=None, tries=6):
+    def eval_chr(self, expr, i, char_range):
+        lo, hi = char_range
+        while lo < hi:
+            mid = (lo+hi)/2
+            if self.char_cmp(expr, i, mid):
+                hi = mid
+            else:
+                lo = mid + 1
+        return chr(lo)
+
+    def eval_str(self, expr, len_range=(0,100), char_range=None, tries=10, n=10):
         if not char_range:
             char_range = self.__class__.char_range
         res = ""
@@ -33,25 +43,20 @@ class Backend(object):
         res = ["?"]*sz
         mx = threading.Lock()
         sys.stdout.write("".join(res))
+        sys.stdout.flush()
         def task(i):
             for _ in range(tries):
                 try:
-                    lo, hi = char_range
-                    while lo < hi:
-                        mid = (lo+hi)/2
-                        if self.char_cmp(expr, i, mid):
-                            hi = mid
-                        else:
-                            lo = mid + 1
+                    c = self.eval_chr(expr, i, char_range)
                     with mx:
-                        res[i] = chr(lo)
+                        res[i] = c
                         sys.stdout.write('\r' + "".join(res))
                         sys.stdout.flush()
                         return
                 except e:
                     pass
             raise e
-        par.iter_parallel(task, range(sz), n=10)
+        par.iter_parallel(task, range(sz), n=n)
         print
         return "".join(res)
 
