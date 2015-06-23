@@ -495,7 +495,11 @@ class Remote_x86_64(object):
             ))
         self.sock.sendall(data)
 
-libc = ctypes.CDLL("libc.so.6")
+try:
+    libc = ctypes.CDLL("libc.so.6")
+except:
+    pass
+
 def alloc_exec_buffer(buf):
     sz = len(buf)
     buf = ctypes.c_char_p(buf)
@@ -607,6 +611,12 @@ def copy_to_clipboard(s):
 
 def sha1(s):
     return hashlib.sha1(s).hexdigest()
+
+def sha256(s):
+    return hashlib.sha256(s).hexdigest()
+
+def md5(s):
+    return hashlib.md5(s).hexdigest()
 
 def sh(s):
     return subprocess.check_output(['bash', '-c', s], stderr=subprocess.STDOUT)
