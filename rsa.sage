@@ -1,19 +1,20 @@
-def franklin_reiter(a, b, c1, c2, n, e):
+def franklin_reiter(f, c1, c2, n, e):
     """
-    Let ci = mi^e (mod n). Assume m2 = a*m1 + b.
+    Let ci = mi^e (mod n) and f a polynomial. Assume m2 = f(m1)
     Returns the tuple (m1, m2).
     """
     def gcd_(a, b):
         if b == 0: return a
         return gcd_(b, a % b)
-    RZ.<x> = Integers(n)[]
+    ZN = Integers(n)
+    RZ.<x> = ZN[]
     g1 = x^e-c1
-    g2 = (a*x + b)^e-c2
+    g2 = f(x)^e-c2
     c, d = gcd_(g1, g2).coefficients()
     m1 = -c * d^(-1)
-    assert pow(m1, e, n) == c1
-    assert pow(a*m1 + b, e, n) == c2
-    return m1, a*m1 + b
+    m2 = ZN(f(m1)) # segfaults without the ZN(..), why?
+    assert pow(m1, e, n) == c1 and pow(m2, e, n) == c2
+    return m1, m2
 
 def short_pad(c1, c2, n, e, X=None, epsilon=.1):
     """
@@ -25,13 +26,15 @@ def short_pad(c1, c2, n, e, X=None, epsilon=.1):
     if X is None:
         X = floor(n^(1/(e^2)))
     assert X <= n^(1/(e^2))
-    RZ.<x,y> = Integers(n)[]
+    ZN = Integers(n)
+    RZ.<x,y> = ZN[]
     g1 = x**e - c1
     g2 = (x+y)**e - c2
     h = g1.polynomial(x).resultant(g2.polynomial(x))(y=x).univariate_polynomial()
     # delta = r2 - r1
     delta = h.small_roots(X=X, beta=1, epsilon=epsilon)[0]
-    return franklin_reiter(1, delta, c1, c2, n, e)
+    RZ.<x> = ZN[]
+    return franklin_reiter(x + delta, c1, c2, n, e)
 
 def factor_lsb(p_lo, mod, upper, n, epsilon=.1):
     """
@@ -141,11 +144,14 @@ def test_franklin_reiter():
         p, q, n = gen_rsa(bits)
         a = random.getrandbits(bits)
         b = random.getrandbits(bits)
+        c = random.getrandbits(bits)
+        RZ.<x> = Integers(n)[]
+        f = a*x^2 + b*x + c
         m1 = random.getrandbits(bits)
-        m2 = (a * m1 + b) % n
+        m2 = f(m1)
         c1 = pow(m1, e, n)
         c2 = pow(m2, e, n)
-        mm1, mm2 = franklin_reiter(a, b, c1, c2, n, e)
+        mm1, mm2 = franklin_reiter(f, c1, c2, n, e)
         assert mm1 == m1 and mm2 == m2
 
 @test
