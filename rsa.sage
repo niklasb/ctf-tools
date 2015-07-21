@@ -18,7 +18,7 @@ def franklin_reiter(f, c1, c2, n, e):
 
 def short_pad(c1, c2, n, e, X=None, epsilon=.1):
     """
-    Assume abs(c1 - c2) < X.
+    Assume abs(m2 - m1) < X.
     Returns a tuple (m1, m2) with mi^e = ci (mod n).
 
     Tweak epsilon if no solution is found: smaller is better, but slower.
@@ -31,7 +31,7 @@ def short_pad(c1, c2, n, e, X=None, epsilon=.1):
     g1 = x**e - c1
     g2 = (x+y)**e - c2
     h = g1.polynomial(x).resultant(g2.polynomial(x))(y=x).univariate_polynomial()
-    # delta = r2 - r1
+    # delta = m2 - m1
     delta = h.small_roots(X=X, beta=1, epsilon=epsilon)[0]
     RZ.<x> = ZN[]
     return franklin_reiter(x + delta, c1, c2, n, e)
