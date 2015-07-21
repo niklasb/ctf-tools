@@ -1,2 +1,3 @@
 *.pyc
 .gdb*
+*.sage.py
