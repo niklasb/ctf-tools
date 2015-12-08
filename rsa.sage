@@ -107,6 +107,29 @@ def wiener(e, n):
             if p * q == n:
                 return p, q
 
+def find_sqrt(a, p):
+    """
+    Find a square root of a mod p.
+    """
+    assert legendre_symbol(a,p) == 1
+    if (p-1)%4 == 0:
+        S.<x> = PolynomialRing(GF(p))
+        R.<alpha> = S.quotient(x^2 - a)
+        while True:
+            z = GF(p).random_element()
+            w = (1 + z*alpha)^((p-1)//2)
+            (u, v) = (w[0], w[1])
+            if v != 0: break
+        if (-u/v)^2 == a: return -u/v
+        if ((1-u)/v)^2 == a: return (1-u)/v
+        if ((-1-u)/v)^2 == a: return (-1-u)/v
+        assert False
+    elif p%4 == 3:
+        return pow(a%p, (p+1)//4, p)
+    else:
+        assert False
+
+
 ################# tests #####################
 
 import random
@@ -204,6 +227,15 @@ def test_wiener():
     n = p*q
     e = inverse_mod(d, (p-1)*(q-1))
     assert (q, p) == wiener(e, n)
+
+@test
+def test_sqrt():
+    for _ in range(10):
+        p = next_prime(random.randrange(0,10**30))
+        for _ in range(10):
+            a = random.randrange(0,p)
+            x = find_sqrt(a*a, p)
+            assert x == a or x == p-a
 
 for f in tests:
     print f.func_name
