@@ -11,7 +11,7 @@ def iter_parallel(f, seq, n=10):
                 if not tasks:
                     break
                 i = tasks.pop()
-            x = f(i)
+            x = f(seq[i])
             with mx:
                 res[i] = x
     threads = [threading.Thread(target=thread) for _ in range(min(n, sz))]
