@@ -328,8 +328,8 @@ class x86_64_shellcode:
         else:
             raise Exception, "Don't support negative numbers yet"
         res = x86_64.assemble(asm)
-        print asm
-        print x86_64.disas(res)
+        #print asm
+        #print x86_64.disas(res)
         assert '\0' not in res
         return res
 
@@ -340,7 +340,7 @@ class x86_64_shellcode:
         s += '\0'
         for i in reversed(range(0, len(s), w)):
             part = s[i:i+w].ljust(w, '\0')
-            res += x86_64_shellcode.push_const(struct.unpack("<Q", part)[0])
+            res += x86_64_shellcode.push_const(struct.unpack("<Q", part)[0], reg=reg)
         assert '\0' not in res
         return res
 
