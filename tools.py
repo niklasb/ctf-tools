@@ -32,6 +32,10 @@ def pack64(x):
     if isinstance(x, int):
         return struct.pack("Q", x)
     return x
+def unpack(x):
+    return struct.unpack("I", x)[0]
+def unpack64(x):
+    return struct.unpack("Q", x)[0]
 
 def de_bruijn(k, n):
     a = [0] * k * n
