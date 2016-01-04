@@ -65,9 +65,9 @@ class Pattern:
             return
         s = ""
         for a,b,c in itertools.product(
-                                            string.ascii_uppercase,
-                                            string.ascii_lowercase,
-                                            string.digits):
+                string.ascii_uppercase,
+                string.ascii_lowercase,
+                string.digits):
             s += a + b + c
             if len(s) >= n:
                 break
@@ -172,7 +172,7 @@ class x86_shellcode:
     duploop:
         mov al, 0x3f ;syscall: sys_dup2
         int 0x80         ;exec sys_dup2
-        dec ecx	         ;decrement loop-counter
+        dec ecx             ;decrement loop-counter
         jns duploop         ;as long as SF is not set -> jmp to loop
     """)
     shell_sock_reuse = x86.assemble(""" ; ebx = dup(2) - 1; dup2_ebx; shell
@@ -535,10 +535,10 @@ def execvpe(fname, args, env):
 
 def pipe(cmd, inp=""):
     return (subprocess.Popen(cmd,
-                                    stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE)
-                         .communicate(inp)[0])
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
+        .communicate(inp)[0])
 
 def instrument(cmd, args, env):
     stdin_read, stdin_write = os.pipe()
@@ -590,7 +590,7 @@ def pause():
     print "[*] Press enter to continue"
     raw_input()
 
-def socket_interact(s):
+def interact(s):
     t = telnetlib.Telnet()
     t.sock = s
     t.interact()
