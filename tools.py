@@ -112,9 +112,7 @@ def nasm(code, bits=32):
             if p.returncode:
                 print err
                 raise Exception("Assembly failed")
-            res = outp.read()
-            print repr(res)
-            return res
+            return outp.read()
 
 def yasm(code, bits=32):
     if isinstance(code, list):
