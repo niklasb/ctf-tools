@@ -97,6 +97,25 @@ def tohex(s):
 def fromhex(s):
     return "".join(s.split()).decode("hex")
 
+def nasm(code, bits=32):
+    if isinstance(code, list):
+        code = "\n".join(code)
+    code = "BITS %d\n%s\n" % (bits, code)
+    with tempfile.NamedTemporaryFile() as inp:
+        inp.write(code)
+        inp.flush()
+        with tempfile.NamedTemporaryFile() as outp:
+            fnameOut = outp.name
+            p = subprocess.Popen(["nasm", "-o", outp.name, inp.name],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = p.communicate(code)
+            if p.returncode:
+                print err
+                raise Exception("Assembly failed")
+            res = outp.read()
+            print repr(res)
+            return res
+
 def yasm(code, bits=32):
     if isinstance(code, list):
         code = "\n".join(code)
@@ -110,6 +129,13 @@ def yasm(code, bits=32):
             print err
             raise Exception("Assembly failed")
         return outp.read()
+
+def yasm_or_nasm(*args, **kw):
+    try:
+        sh('which yasm')
+        return yasm(*args, **kw)
+    except:
+        return nasm(*args, **kw)
 
 def capstone_dump(code, arch=capstone.CS_ARCH_X86, mode=capstone.CS_MODE_32, cols="abm"):
     md = capstone.Cs(arch, mode)
@@ -138,7 +164,7 @@ def xor_pair(s, bad='\0'):
 class x86:
     @staticmethod
     def assemble(code, **kw):
-        return yasm(code, 32, **kw)
+        return yasm_or_nasm(code, 32, **kw)
     @staticmethod
     def disas(code, **kw):
         return capstone_dump(code, capstone.CS_ARCH_X86, capstone.CS_MODE_32, **kw)
@@ -147,7 +173,7 @@ class x86:
 class x86_64:
     @staticmethod
     def assemble(code, **kw):
-        return yasm(code, 64, **kw)
+        return yasm_or_nasm(code, 64, **kw)
     @staticmethod
     def disas(code, **kw):
         return capstone_dump(code, capstone.CS_ARCH_X86, capstone.CS_MODE_64, **kw)
