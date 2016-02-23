@@ -128,6 +128,9 @@ def yasm(code, bits=32):
             raise Exception("Assembly failed")
         return outp.read()
 
+def sh(s):
+    return subprocess.check_output(['bash', '-c', s], stderr=subprocess.STDOUT)
+
 def yasm_or_nasm(*args, **kw):
     try:
         sh('which yasm')
@@ -655,9 +658,6 @@ def sha256(s):
 
 def md5(s):
     return hashlib.md5(s).hexdigest()
-
-def sh(s):
-    return subprocess.check_output(['bash', '-c', s], stderr=subprocess.STDOUT)
 
 def make_format(addr, val, offset, dbg=False, bits=64):
     """
