@@ -1,3 +1,4 @@
+#!/usr/bin/env python2
 from tools import *
 a = sys.argv
 def i(x):
