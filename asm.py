@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-from tools import *
+from pwnlib.tools import *
 import argparse
 
 p = argparse.ArgumentParser()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-from tools import *
+from pwnlib.tools import *
 a = sys.argv
 def i(x):
     return int(x[2:],16) if x.startswith('0x') else int(x)
