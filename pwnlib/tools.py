@@ -25,11 +25,11 @@ UC = string.ascii_uppercase
 HEX = "0123456789abcdef"
 
 def pack(x):
-    if isinstance(x, int):
+    if isinstance(x, (int,long)):
         return struct.pack("I", x)
     return x
 def pack64(x):
-    if isinstance(x, int):
+    if isinstance(x, (int,long)):
         return struct.pack("Q", x)
     return x
 def unpack(x):
