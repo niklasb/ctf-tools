@@ -642,9 +642,24 @@ def pause():
     raw_input()
 
 def interact(s):
-    t = telnetlib.Telnet()
-    t.sock = s
-    t.interact()
+    # from https://github.com/saelo/ctfcode/blob/master/pwn.py
+    try:
+        while True:
+            available, _, _ = select.select([0, s], [], [])
+            for src in available:
+                if src == 0:
+                    # Only one read() call, otherwise this breaks when the tty is in raw mode
+                    data = os.read(0, 1024)
+                    s.sendall(data)
+                else:
+                    data = s.recv(4096)
+                    if not data:
+                        print('*** Server disconnected ***')
+                        return
+                    sys.stdout.write(data)
+                    sys.stdout.flush()
+    except KeyboardInterrupt:
+        return
 
 def gzip_compress(s):
     with tempfile.NamedTemporaryFile() as f:
