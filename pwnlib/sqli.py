@@ -33,7 +33,7 @@ class Backend(object):
                 hi = mid
         return chr(lo)
 
-    def eval_str(self, expr, len_range=(0,100), char_range=None, tries=10, n=10):
+    def eval_str(self, expr, len_range=(0,1000), char_range=None, tries=10, n=10):
         if not char_range:
             char_range = self.__class__.char_range
         res = ""
@@ -78,3 +78,12 @@ class MySql(Backend):
         return self.eval_bool("ord(substr((%s),%d,1))>%d" % (str_expr, i+1, c))
     def encode_str(self, s):
         return '0x' + s.encode('hex')
+
+class Postgres(Backend):
+    def __init__(self, eval_bool):
+        self.eval_bool = eval_bool
+    char_range = (0,255)
+    def char_gt(self, str_expr, i, c):
+        return self.eval_bool("ascii(substr((%s),%d,1))>%d" % (str_expr, i+1, c))
+    def encode_str(self, s):
+        return "'" + s.replace("'", "''") + "'"
