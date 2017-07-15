@@ -87,3 +87,8 @@ class Postgres(Backend):
         return self.eval_bool("ascii(substr((%s),%d,1))>%d" % (str_expr, i+1, c))
     def encode_str(self, s):
         return "'" + s.replace("'", "''") + "'"
+    def tables(self):
+        return self.eval_str("SELECT string_agg(c.relname, ',') FROM pg_catalog.pg_class c LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r', '') AND n.nspname NOT IN ('pg_catalog', 'pg_toast') AND pg_catalog.pg_table_is_visible(c.oid)")
+    def columns(self, table):
+        return self.eval_str("SELECT string_agg(A.attname, ',') FROM pg_class C, pg_namespace N, pg_attribute A, pg_type T WHERE (C.relkind='r') AND (N.oid=C.relnamespace) AND (A.attrelid=C.oid) AND (A.atttypid=T.oid) AND (A.attnum>0) AND (NOT A.attisdropped) AND (N.nspname ILIKE 'public') and C.relname='%s'" % table)
+
