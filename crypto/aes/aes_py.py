@@ -218,7 +218,7 @@ class AES(object):
         self.exkey = exkey
 
     def get_round_key(self, round):
-        return [self.exkey[round*16 + i] for i in range(16)]
+        return ary([self.exkey[round*16 + i] for i in range(16)])
 
     def encrypt(self, block):
         block = xor(block, self.get_round_key(0))
@@ -248,6 +248,15 @@ class AES(object):
         block = xor(block, self.get_round_key(0))
         return block
 
+def aes128_reverse_keyschedule(key, round):
+    for i in range(round, 0, -1):
+        for j in range(12, 0, -4):
+            for k in range(4):
+                key[j+k] ^= key[j-4+k]
+        for k in range(4):
+            key[k] ^= aes_sbox[key[12+(k+1)%4]] ^ (0 if k else aes_Rcon[i])
+    return key
+
 if __name__ == '__main__':
     print 'Running test...'
     import Crypto.Cipher.AES
@@ -262,3 +271,6 @@ if __name__ == '__main__':
         == map(ord, cipher2.encrypt(plain)))
     assert (list(cipher.decrypt(plain))
         == map(ord, cipher2.decrypt(plain)))
+
+    for round in range(11):
+        assert aes128_reverse_keyschedule(cipher.get_round_key(round), round) == ary(key)
