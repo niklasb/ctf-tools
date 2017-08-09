@@ -250,11 +250,9 @@ class AES(object):
 
 def aes128_reverse_keyschedule(key, round):
     for i in range(round, 0, -1):
-        for j in range(12, 0, -4):
-            for k in range(4):
-                key[j+k] ^= key[j-4+k]
-        for k in range(4):
-            key[k] ^= aes_sbox[key[12+(k+1)%4]] ^ (0 if k else aes_Rcon[i])
+        for j in range(15, 3, -1): key[j] ^= key[j-4]
+        for j in range(3, -1, -1):
+            key[j] ^= aes_sbox[key[12+(j+1)%4]] ^ (0 if j else aes_Rcon[i])
     return key
 
 if __name__ == '__main__':
