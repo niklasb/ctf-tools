@@ -52,7 +52,9 @@ assert hash_mod('wctfdb.exe') == 0xc0af8b40ac01f634
 assert hash_mod('ntdll.dll') == 0x80980b20be020c2e
 assert hash_both('ntdll', 'wcstoul') == 0x058437419c094c67
 
-# from https://github.com/rapid7/metasploit-framework/blob/master/external/source/shellcode/windows/x86/src/block/block_api.asm
+# adapted from https://github.com/rapid7/metasploit-framework/blob/master/external/source/shellcode/windows/x86/src/block/block_api.asm.
+# Uses 64-bit instead of 32-bit hashes to avoid collisions.
+# Function should be called with hash in R10.
 api_call_stub = r'''
 api_call:
   push r9                  ; Save the 4th parameter
