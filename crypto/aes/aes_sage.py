@@ -1,5 +1,4 @@
 from sage.all import *
-from IPython import embed
 from common import *
 from aes_py import AES, ary, to_hex, xor, aes_sbox, aes_inv_sbox, aes_Rcon, sub_bytes
 
