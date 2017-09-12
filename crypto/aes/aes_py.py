@@ -54,19 +54,6 @@ aes_inv_sbox = ary([0]*len(aes_sbox))
 for i in range(len(aes_sbox)):
     aes_inv_sbox[aes_sbox[i]] = i
 
-# The Rcon table is used in AES's key schedule (key expansion)
-# It's a pre-computed table of exponentation of 2 in AES's finite field
-aes_Rcon = ary(
-    '8d01020408102040801b366cd8ab4d9a2f5ebc63c697356ad4b37dfaefc59139'
-    '72e4d3bd61c29f254a943366cc831d3a74e8cb8d01020408102040801b366cd8'
-    'ab4d9a2f5ebc63c697356ad4b37dfaefc5913972e4d3bd61c29f254a943366cc'
-    '831d3a74e8cb8d01020408102040801b366cd8ab4d9a2f5ebc63c697356ad4b3'
-    '7dfaefc5913972e4d3bd61c29f254a943366cc831d3a74e8cb8d010204081020'
-    '40801b366cd8ab4d9a2f5ebc63c697356ad4b37dfaefc5913972e4d3bd61c29f'
-    '254a943366cc831d3a74e8cb8d01020408102040801b366cd8ab4d9a2f5ebc63'
-    'c697356ad4b37dfaefc5913972e4d3bd61c29f254a943366cc831d3a74e8cb'.decode('hex')
-)
-
 def galois_multiply(a, b):
     """Galois Field multiplicaiton for AES"""
     p = 0
@@ -79,6 +66,11 @@ def galois_multiply(a, b):
         b >>= 1
 
     return p & 0xff
+
+aes_Rcon = ary([0x8d]*0x100)
+for i in range(1, 0x100):
+    aes_Rcon[i] = galois_multiply(aes_Rcon[i-1], 2)
+
 
 # Precompute the multiplication tables for encryption
 gf_mul_by_2 = ary([galois_multiply(x, 2) for x in range(256)])
