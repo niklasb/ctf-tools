@@ -708,3 +708,12 @@ def make_format(addr, val, offset, dbg=False, bits=64):
             fmt += "%{}$hn".format(offset+pos)
         addrstr += struct.pack("Q", addr+2*i)
     return fmt, addrstr, vals[-1][0]
+
+# aliases
+ru = read_until
+
+p32 = pack
+u32 = unpack
+
+p64 = pack64
+u64 = unpack64
