@@ -1,8 +1,7 @@
 import tempfile, subprocess, os
 
 NASM = 'C:/Program Files/NASM/nasm.exe'
-
-def nasm(code, nasm_path=NASM):
+def nasm_win(code, nasm_path=NASM):
     fdin, infname = tempfile.mkstemp()
     fdout, outfname = tempfile.mkstemp()
     os.close(fdin)
@@ -50,7 +49,12 @@ def hash_both(mod, func, w=64):
 
 assert hash_mod('wctfdb.exe') == 0xc0af8b40ac01f634
 assert hash_mod('ntdll.dll') == 0x80980b20be020c2e
+assert hash_mod('USER32.DLL') == 0x408e8aa8b1821630
+assert hash_func('wvsprintfW') == 0x448027815b0a9052
+assert hash_func('MessageBoxA') == 0xc43e2a215107b84b
 assert hash_both('ntdll', 'wcstoul') == 0x058437419c094c67
+assert hash_both('user32', 'wvsprintfW') == 0x850eb22a0c8ca682
+assert hash_both('user32', 'MessageBoxA') == 0x04ccb4ca0289ce7b
 
 # adapted from https://github.com/rapid7/metasploit-framework/blob/master/external/source/shellcode/windows/x64/src/block/block_api.asm.
 # Uses 64-bit instead of 32-bit hashes to avoid collisions.
