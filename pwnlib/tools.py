@@ -647,6 +647,7 @@ THE_SOCKET = None
 
 def connect(host, port):
     global THE_TARGET, THE_SOCKET
+    info('Connecting to %s:%d' % (host, port))
     s = socket.create_connection((host, port))
     s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     THE_TARGET = (host, port)
@@ -655,6 +656,7 @@ def connect(host, port):
 
 def reconnect():
     assert THE_TARGET is not None
+    info('Re-connecting to %s:%d' % THE_TARGET)
     try:
         THE_SOCKET.close()
     except:
@@ -822,7 +824,7 @@ def enjoy(s=None, timeout=0.5):
     s.sendall('id;uname -a\n')
     s.sendall('echo -n "cwd : ";for file in $(ls); do echo -n "$file "; done; echo\n')
     s.sendall('echo -n "/   : ";for file in $(ls /); do echo -n "$file "; done; echo\n')
-    s.sendall('(cat flag.txt flag /flag /flag.txt;/flag)2>/dev/null\n')
+    s.sendall('(bash -c "cat {/,./}{flag,FLAG,Flag}{,.txt}") 2>/dev/null\n')
     print Colors.RED + read_all(s, debug=False, timeout=timeout) + Colors.ENDC
     info('And finally what we all came here for:')
     sys.stdout.write(Colors.BOLD + Colors.RED + '$ ' + Colors.ENDC)
