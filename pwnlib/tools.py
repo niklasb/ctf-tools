@@ -679,7 +679,6 @@ def connect(host=None, port=None):
 
 def reconnect():
     assert THE_TARGET is not None
-    info('Re-connecting to %s:%d' % THE_TARGET)
     try:
         THE_SOCKET.close()
     except:
