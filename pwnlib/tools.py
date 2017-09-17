@@ -1,4 +1,3 @@
-import capstone
 import ctypes
 import functools
 import gzip
@@ -138,19 +137,23 @@ def yasm_or_nasm(*args, **kw):
     except:
         return nasm(*args, **kw)
 
-def capstone_dump(code, arch=capstone.CS_ARCH_X86, mode=capstone.CS_MODE_32, cols="abm"):
-    md = capstone.Cs(arch, mode)
-    res = ""
-    for i in md.disasm(code, 0x1000):
-        line = ""
-        if "a" in cols:
-            line += "0x%04x: " % i.address
-        if "b" in cols:
-            line += "%-20s " % " ".join("%02x" % x for x in i.bytes)
-        if "m" in cols:
-            line += "%s %s" % (i.mnemonic, i.op_str)
-        res += line + "\n"
-    return res
+try:
+    import capstone
+    def capstone_dump(code, arch=capstone.CS_ARCH_X86, mode=capstone.CS_MODE_32, cols="abm"):
+        md = capstone.Cs(arch, mode)
+        res = ""
+        for i in md.disasm(code, 0x1000):
+            line = ""
+            if "a" in cols:
+                line += "0x%04x: " % i.address
+            if "b" in cols:
+                line += "%-20s " % " ".join("%02x" % x for x in i.bytes)
+            if "m" in cols:
+                line += "%s %s" % (i.mnemonic, i.op_str)
+            res += line + "\n"
+        return res
+except ImportError:
+    pass
 
 def xor_str(s, key):
     return "".join(chr(ord(c)^ord(k)) for c, k in zip(s, itertools.cycle(key)))
@@ -717,3 +720,7 @@ u32 = unpack
 
 p64 = pack64
 u64 = unpack64
+
+def info(fmt, *args):
+    fmt = fmt.replace('%p', '0x%016x')
+    print '[*] ' + fmt % args
