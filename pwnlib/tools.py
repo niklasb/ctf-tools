@@ -27,6 +27,7 @@ class Colors:
     GREEN = '\033[92m'
     CYAN = '\033[36m'
     MAGENTA = '\033[35m'
+    RED = '\033[31m'
     BGBLUE = '\033[44m'
     BGGREEN = '\033[42m'
     BGCYAN = '\033[46m'
@@ -672,6 +673,28 @@ def format_char(c, fg, bg):
     else:
         return bg + '{:02x}'.format(ord(c)) + Colors.ENDC
 
+def read_all(*args, **kw):
+    debug = kw.get('debug', True) and DEBUG
+    timeout = kw.get('timeout', 0.2)
+    if len(args) == 0:
+        s = THE_SOCKET
+    else:
+        s, = args
+
+    if debug:
+        print Colors.YELLOW + '[*] Reading as much data as there is...' + Colors.ENDC
+    buf = ''
+    while can_read(s, timeout=timeout):
+        part = s.recv(1024)
+        if debug:
+            for c in part:
+                sys.stdout.write(format_char(c, Colors.BLUE, Colors.BGBLUE))
+        assert part
+        buf += part
+    if debug and not buf.endswith('\n'):
+        sys.stdout.write(Colors.BGBLUE + '%' + Colors.ENDC + '\n')
+    return buf
+
 def readn(*args, **kw):
     debug = kw.get('debug', True) and DEBUG
 
@@ -753,6 +776,13 @@ def send(*args, **kw):
         sys.stdout.flush()
     s.sendall(st)
 
+def sendln(*args, **kw):
+    if len(args) == 1:
+        s = THE_SOCKET
+        st, = args
+    else:
+        s, st = args
+    send(s, st + '\n', **kw)
 
 def pause():
     info('Press ENTER to continue')
@@ -779,13 +809,24 @@ def interact(s=None):
     except KeyboardInterrupt:
         return
 
-def enjoy(s=None):
+def enjoy(s=None, timeout=0.5):
     if s is None: s = THE_SOCKET
-    info('Enjoy your shell!')
+    while True:
+        sendln(s, 'echo __SHELLMARKER__', debug=False)
+        buf = ''
+        if '__SHELLMARKER__' in read_all(s, timeout=timeout, debug=False):
+            break
+    read_all(s, debug=False, timeout=timeout)
+
+    info('Some info you might enjoy:')
     s.sendall('id;uname -a\n')
     s.sendall('echo -n "cwd : ";for file in $(ls); do echo -n "$file "; done; echo\n')
     s.sendall('echo -n "/   : ";for file in $(ls /); do echo -n "$file "; done; echo\n')
     s.sendall('(cat flag.txt flag /flag /flag.txt;/flag)2>/dev/null\n')
+    print Colors.RED + read_all(s, debug=False, timeout=timeout) + Colors.ENDC
+    info('And finally what we all came here for:')
+    sys.stdout.write(Colors.BOLD + Colors.RED + '$ ' + Colors.ENDC)
+    sys.stdout.flush()
     interact(s)
 
 def gzip_compress(s):
