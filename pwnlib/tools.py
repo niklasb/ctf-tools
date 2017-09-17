@@ -19,8 +19,37 @@ import time
 from sys import stdin, stdout, stderr, exit
 from time import sleep
 
+class Colors:
+    HEADER = '\033[95m'
+    BLACK = '\033[30m'
+    YELLOW = '\033[33m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    CYAN = '\033[36m'
+    MAGENTA = '\033[35m'
+    BGBLUE = '\033[44m'
+    BGGREEN = '\033[42m'
+    BGCYAN = '\033[46m'
+    BGMAGENTA = '\033[45m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+def info(fmt, *args):
+    fmt = fmt.replace('%p', '0x%016x')
+    print Colors.BOLD + Colors.GREEN + '[*] ' + fmt % args + Colors.ENDC
+
+DEBUG = False
+if '--dbg' in sys.argv:
+    sys.argv = [x for x in sys.argv if x != '--dbg']
+    DEBUG = True
+    info('Debug mode enabled')
+
 LC = string.ascii_lowercase
 UC = string.ascii_uppercase
+DIG = "0123456789"
 HEX = "0123456789abcdef"
 
 def pack(x):
@@ -386,8 +415,6 @@ class x86_64_shellcode:
         else:
             raise Exception, "Don't support negative numbers yet"
         res = x86_64.assemble(asm)
-        #print asm
-        #print x86_64.disas(res)
         assert '\0' not in res
         return res
 
@@ -524,7 +551,7 @@ class Remote_x86_64(object):
             """.format(addr=addr, sz=sz) +
             x86_64_shellcode._read_send_loop("r9", "r10", self.fd_out, 1)
             ))
-        return read_all(self.sock, sz)
+        return readn(self.sock, sz, debug=False)
 
     def read_str(self, addr):
         res = ""
@@ -607,11 +634,6 @@ def instrument(cmd, args, env):
                     os.fdopen(stdout_read, "r"),
                     lambda: os.waitpid(pid, 0))
 
-def connect(host, port):
-    s = socket.create_connection((host, port))
-    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    return s
-
 def can_read(s, timeout=0):
     x,_,_ = select.select([s], [], [], timeout)
     return x != []
@@ -619,32 +641,125 @@ def can_read(s, timeout=0):
 def wait_for_socket(s, timeout=1):
     return can_read(s, timeout)
 
-def read_all(s, sz):
+THE_TARGET = None
+THE_SOCKET = None
+
+def connect(host, port):
+    global THE_TARGET, THE_SOCKET
+    s = socket.create_connection((host, port))
+    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    THE_TARGET = (host, port)
+    THE_SOCKET = s
+    return s
+
+def reconnect():
+    assert THE_TARGET is not None
+    try:
+        THE_SOCKET.close()
+    except:
+        pass
+    connect(*THE_TARGET)
+
+ESCAPES = {'\r': r'\r', '\n': '\\n\n', '\t': r'\t'}
+
+def format_char(c, fg, bg):
+    if 0x20 <= ord(c) <= 0x7e:
+        return fg + c + Colors.ENDC
+    elif c == '\n':
+        return bg + r'\n' + Colors.ENDC + '\n'
+    elif c in ESCAPES:
+        return bg + ESCAPES[c] + Colors.ENDC
+    else:
+        return bg + '{:02x}'.format(ord(c)) + Colors.ENDC
+
+def readn(*args, **kw):
+    debug = kw.get('debug', True) and DEBUG
+
+    if len(args) == 1:
+        s = THE_SOCKET
+        sz, = args
+    else:
+        s, sz = args
+
+    if debug:
+        print Colors.YELLOW + '[*] Reading %d bytes...' % sz + Colors.ENDC
     buf = ""
     while len(buf) < sz:
-        d = s.recv(sz - len(buf))
-        assert d
-        buf += d
+        part = s.recv(sz - len(buf))
+        assert part
+        if debug:
+            for c in part:
+                sys.stdout.write(format_char(c, Colors.BLUE, Colors.BGBLUE))
+            sys.stdout.flush()
+        buf += part
+    if debug and not buf.endswith('\n'):
+        sys.stdout.write(Colors.BGBLUE + '%' + Colors.ENDC + '\n')
     return buf
 
-def read_until(s, f):
+def read_until(*args, **kw):
+    debug = kw.get('debug', True) and DEBUG
+
+    if len(args) == 1:
+        s = THE_SOCKET
+        f, = args
+    else:
+        s, f = args
+
     if not callable(f):
+        if debug:
+            print Colors.YELLOW + '[*] Waiting for %r...' % f + Colors.ENDC
         f = lambda x, st=f: st in x
+
     buf = ""
-    while not f(buf):
-        d = s.recv(1)
-        assert d
-        buf += d
+    if debug:
+        while not f(buf):
+            d = s.recv(1)
+            assert d
+            sys.stdout.write(format_char(d, Colors.BLUE, Colors.BGBLUE))
+            sys.stdout.flush()
+            buf += d
+    else:
+        while not f(buf):
+            d = s.recv(1)
+            assert d
+            buf += d
+    if debug and not buf.endswith('\n'):
+        sys.stdout.write(Colors.BGBLUE + '%' + Colors.ENDC + '\n')
     return buf
 
-def read_until_match(s, regex):
-    return re.match(regex, read_until(s, lambda x: re.match(regex, x))).groups()
+def read_until_match(*args, **kw):
+    if len(args) == 1:
+        s = THE_SOCKET
+        regex, = args
+    else:
+        s, regex = args
+    return re.match(regex, read_until(s, lambda x: re.match(regex, x), **kw)).groups()
+
+def send(*args, **kw):
+    debug = kw.get('debug', True) and DEBUG
+
+    if len(args) == 1:
+        s = THE_SOCKET
+        st, = args
+    else:
+        s, st = args
+
+    debug &= DEBUG
+    if debug:
+        for c in st:
+            sys.stdout.write(format_char(c, Colors.MAGENTA, Colors.BGMAGENTA))
+        if not st.endswith('\n'):
+            sys.stdout.write(Colors.BGMAGENTA + '%' + Colors.ENDC + '\n')
+        sys.stdout.flush()
+    s.sendall(st)
+
 
 def pause():
-    print "[*] Press enter to continue"
+    info('Press ENTER to continue')
     raw_input()
 
-def interact(s):
+def interact(s=None):
+    if s is None: s = THE_SOCKET
     # from https://github.com/saelo/ctfcode/blob/master/pwn.py
     try:
         while True:
@@ -663,6 +778,15 @@ def interact(s):
                     sys.stdout.flush()
     except KeyboardInterrupt:
         return
+
+def enjoy(s=None):
+    if s is None: s = THE_SOCKET
+    info('Enjoy your shell!')
+    s.sendall('id;uname -a\n')
+    s.sendall('echo -n "cwd : ";for file in $(ls); do echo -n "$file "; done; echo\n')
+    s.sendall('echo -n "/   : ";for file in $(ls /); do echo -n "$file "; done; echo\n')
+    s.sendall('(cat flag.txt flag /flag /flag.txt;/flag)2>/dev/null\n')
+    interact(s)
 
 def gzip_compress(s):
     with tempfile.NamedTemporaryFile() as f:
@@ -720,7 +844,3 @@ u32 = unpack
 
 p64 = pack64
 u64 = unpack64
-
-def info(fmt, *args):
-    fmt = fmt.replace('%p', '0x%016x')
-    print '[*] ' + fmt % args
