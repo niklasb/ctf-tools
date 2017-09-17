@@ -43,10 +43,31 @@ def info(fmt, *args):
     print Colors.BOLD + Colors.GREEN + '[*] ' + fmt % args + Colors.ENDC
 
 DEBUG = False
+LOCAL = False
+
+HOST = None
+PORT = None
+
 if '--dbg' in sys.argv:
     sys.argv = [x for x in sys.argv if x != '--dbg']
     DEBUG = True
     info('Debug mode enabled')
+
+if '--local' in sys.argv:
+    sys.argv = [x for x in sys.argv if x != '--local']
+    LOCAL = True
+    HOST = 'localhost'
+    PORT = 4444
+
+if '--host' in sys.argv:
+    idx = sys.argv.index('--host')
+    HOST = sys.argv[idx+1]
+    sys.argv = sys.argv[:idx] + sys.argv[idx+2:]
+
+if '--port' in sys.argv:
+    idx = sys.argv.index('--port')
+    PORT = int(sys.argv[idx+1])
+    sys.argv = sys.argv[:idx] + sys.argv[idx+2:]
 
 LC = string.ascii_lowercase
 UC = string.ascii_uppercase
@@ -645,7 +666,9 @@ def wait_for_socket(s, timeout=1):
 THE_TARGET = None
 THE_SOCKET = None
 
-def connect(host, port):
+def connect(host=None, port=None):
+    if host is None or HOST is not None: host = HOST
+    if port is None or PORT is not None: port = PORT
     global THE_TARGET, THE_SOCKET
     info('Connecting to %s:%d' % (host, port))
     s = socket.create_connection((host, port))
