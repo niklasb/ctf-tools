@@ -697,6 +697,25 @@ def format_char(c, fg, bg):
     else:
         return bg + '{:02x}'.format(ord(c)) + Colors.ENDC
 
+def debug_io(data, out):
+    if out:
+        fg, bg = Colors.MAGENTA, Colors.BGMAGENTA
+    else:
+        fg, bg = Colors.BLUE, Colors.BGBLUE
+    for c in data:
+        sys.stdout.write(format_char(c, fg, bg))
+    sys.stdout.flush()
+
+def debug_io_end(data, out):
+    if data.endswith('\n'):
+        return
+    if out:
+        bg = Colors.BGMAGENTA
+    else:
+        bg = Colors.BGBLUE
+    sys.stdout.write(bg + '%' + Colors.ENDC + '\n')
+    sys.stdout.flush()
+
 def read_all(*args, **kw):
     debug = kw.get('debug', True) and DEBUG
     timeout = kw.get('timeout', 0.2)
@@ -710,13 +729,10 @@ def read_all(*args, **kw):
     buf = ''
     while can_read(s, timeout=timeout):
         part = s.recv(1024)
-        if debug:
-            for c in part:
-                sys.stdout.write(format_char(c, Colors.BLUE, Colors.BGBLUE))
+        if debug: debug_io(part, out=False)
         assert part
         buf += part
-    if debug and not buf.endswith('\n'):
-        sys.stdout.write(Colors.BGBLUE + '%' + Colors.ENDC + '\n')
+    if debug: debug_io_end(buf, out=False)
     return buf
 
 def readn(*args, **kw):
@@ -734,13 +750,9 @@ def readn(*args, **kw):
     while len(buf) < sz:
         part = s.recv(sz - len(buf))
         assert part
-        if debug:
-            for c in part:
-                sys.stdout.write(format_char(c, Colors.BLUE, Colors.BGBLUE))
-            sys.stdout.flush()
+        if debug: debug_io(part, out=False)
         buf += part
-    if debug and not buf.endswith('\n'):
-        sys.stdout.write(Colors.BGBLUE + '%' + Colors.ENDC + '\n')
+    if debug: debug_io_end(buf, out=False)
     return buf
 
 def read_until(*args, **kw):
@@ -762,16 +774,14 @@ def read_until(*args, **kw):
         while not f(buf):
             d = s.recv(1)
             assert d
-            sys.stdout.write(format_char(d, Colors.BLUE, Colors.BGBLUE))
-            sys.stdout.flush()
+            if debug: debug_io(d, out=False)
             buf += d
     else:
         while not f(buf):
             d = s.recv(1)
             assert d
             buf += d
-    if debug and not buf.endswith('\n'):
-        sys.stdout.write(Colors.BGBLUE + '%' + Colors.ENDC + '\n')
+    if debug: debug_io_end(buf, out=False)
     return buf
 
 def read_until_match(*args, **kw):
@@ -793,11 +803,8 @@ def send(*args, **kw):
 
     debug &= DEBUG
     if debug:
-        for c in st:
-            sys.stdout.write(format_char(c, Colors.MAGENTA, Colors.BGMAGENTA))
-        if not st.endswith('\n'):
-            sys.stdout.write(Colors.BGMAGENTA + '%' + Colors.ENDC + '\n')
-        sys.stdout.flush()
+        debug_io(st, out=True)
+        debug_io_end(st, out=True)
     s.sendall(st)
 
 def sendln(*args, **kw):
