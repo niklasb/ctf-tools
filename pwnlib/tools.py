@@ -784,6 +784,13 @@ def read_until(*args, **kw):
     if debug: debug_io_end(buf, out=False)
     return buf
 
+def readln(*args, **kw):
+    if len(args) == 0:
+        s = THE_SOCKET
+    else:
+        s, = args
+    return read_until(s, '\n')[:-1]
+
 def read_until_match(*args, **kw):
     if len(args) == 1:
         s = THE_SOCKET
@@ -805,6 +812,7 @@ def send(*args, **kw):
     if debug:
         debug_io(st, out=True)
         debug_io_end(st, out=True)
+    st = str(st)
     s.sendall(st)
 
 def sendln(*args, **kw):
@@ -813,6 +821,7 @@ def sendln(*args, **kw):
         st, = args
     else:
         s, st = args
+    st = str(st)
     send(s, st + '\n', **kw)
 
 def pause():
