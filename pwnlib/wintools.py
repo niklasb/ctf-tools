@@ -60,7 +60,7 @@ assert hash_both('user32', 'MessageBoxA') == 0x04ccb4ca0289ce7b
 # Uses 64-bit instead of 32-bit hashes to avoid collisions.
 # Function should be called with hash in R10.
 api_call_stub64 = r'''
-api_call:
+find_api:
   cld
   push r9                  ; Save the 4th parameter
   push r8                  ; Save the 3rd parameter
@@ -143,10 +143,8 @@ finish:
   pop r8                   ; Restore the 3rd parameter
   pop r9                   ; Restore the 4th parameter
   pop r10                  ; pop off the return address
-  sub rsp, 32              ; reserve space for the four register params (4 * sizeof(QWORD) = 32)
-                           ; It is the callers responsibility to restore RSP if need be (or alloc more space or align RSP).
   push r10                 ; push back the return address
-  jmp rax                  ; Jump into the required function
+  ret
   ; We now automagically return to the correct caller...
 get_next_mod:              ;
   pop rax                  ; Pop off the current (now the previous) modules EAT
@@ -155,6 +153,10 @@ get_next_mod1:             ;
   pop rdx                  ; Restore our position in the module list
   mov rdx, [rdx]           ; Get the next module
   jmp next_mod             ; Process this module
+
+api_call:
+  call find_api
+  jmp rax
 '''
 
 
@@ -241,7 +243,7 @@ finish:
   pop ecx                ; Pop off the origional return address our caller will have pushed
   pop edx                ; Pop off the hash value our caller will have pushed
   push ecx               ; Push back the correct return value
-  jmp eax                ; Jump into the required function
+  jmp eax
   ; We now automagically return to the correct caller...
 
 get_next_mod:            ;
