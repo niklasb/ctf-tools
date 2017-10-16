@@ -142,8 +142,6 @@ finish:
   pop rdx                  ; Restore the 2nd parameter
   pop r8                   ; Restore the 3rd parameter
   pop r9                   ; Restore the 4th parameter
-  pop r10                  ; pop off the return address
-  push r10                 ; push back the return address
   ret
   ; We now automagically return to the correct caller...
 get_next_mod:              ;
