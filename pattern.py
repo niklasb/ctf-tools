@@ -3,7 +3,7 @@ from pwnlib.tools import *
 a = sys.argv
 
 def i(x):
-    return (int(x[2:],16) if x.startswith('0x') else int(x)) & 2**32
+    return (int(x,16) if x.startswith('0x') else int(x)) & 0xffffffff
 
 n = i(a[1]) if len(a) > 1 else 0x400
 p = Pattern(n)
