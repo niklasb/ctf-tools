@@ -16,6 +16,7 @@ import telnetlib
 import tempfile
 import threading
 import time
+import base64
 from sys import stdin, stdout, stderr, exit
 from time import sleep
 
@@ -41,6 +42,10 @@ class Colors:
 def info(fmt, *args):
     fmt = fmt.replace('%p', '0x%016x')
     print Colors.BOLD + Colors.GREEN + '[*] ' + fmt % args + Colors.ENDC
+
+def err(fmt, *args):
+    fmt = fmt.replace('%p', '0x%016x')
+    print Colors.BOLD + Colors.RED + '[*] ' + fmt % args + Colors.ENDC
 
 DEBUG = False
 LOCAL = False
@@ -667,23 +672,30 @@ THE_TARGET = None
 THE_SOCKET = None
 
 def connect(host=None, port=None):
+    global THE_TARGET, THE_SOCKET
+
     if host is None or HOST is not None: host = HOST
     if port is None or PORT is not None: port = PORT
-    global THE_TARGET, THE_SOCKET
-    info('Connecting to %s:%d' % (host, port))
+
+    if THE_TARGET is not None:
+        host, port = THE_TARGET
+
+    if host is None or port is None:
+        err('Please specify host/port via connect() arguments or --host/--port')
+        exit(1)
+    if THE_SOCKET is None:
+        info('Connecting to %s:%d' % (host, port))
+    else:
+        try:
+            THE_SOCKET.close()
+        except:
+            pass
+        info('Re-connecting to %s:%d' % (host, port))
     s = socket.create_connection((host, port))
     s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     THE_TARGET = (host, port)
     THE_SOCKET = s
     return s
-
-def reconnect():
-    assert THE_TARGET is not None
-    try:
-        THE_SOCKET.close()
-    except:
-        pass
-    connect(*THE_TARGET)
 
 ESCAPES = {'\r': r'\r', '\n': '\\n\n', '\t': r'\t'}
 
