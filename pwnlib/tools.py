@@ -195,10 +195,10 @@ def yasm_or_nasm(*args, **kw):
 
 try:
     import capstone
-    def capstone_dump(code, arch=capstone.CS_ARCH_X86, mode=capstone.CS_MODE_32, cols="abm"):
+    def capstone_dump(code, arch=capstone.CS_ARCH_X86, mode=capstone.CS_MODE_32, cols="abm", address=0x1000):
         md = capstone.Cs(arch, mode)
         res = ""
-        for i in md.disasm(code, 0x1000):
+        for i in md.disasm(code, address):
             line = ""
             if "a" in cols:
                 line += "0x%04x: " % i.address
